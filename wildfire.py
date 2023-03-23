@@ -5,8 +5,12 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+<<<<<<< HEAD
 import warnings
 # print(tf.config.list_physical_devices('GPU'))
+=======
+print(tf.config.list_physical_devices('GPU'))
+>>>>>>> 3c9a71057c68194b4bec141cd4ecef8953d0301c
 
 # import dataset
 datapath = "../wildfire_dataset.nc"
@@ -33,6 +37,7 @@ y_label = "burned_areas"
     # wildfire_dataset[features].isel()
 
 # take the first 5 time steps for all x and y to try creating a smaller dataset
+<<<<<<< HEAD
 timesteps = 5
 wf_experimental = wildfire_dataset.head(indexers={"time": timesteps})
 # print(wf_experimental)
@@ -82,6 +87,22 @@ def build_ConvLSTM():
     convlstm = models.Sequential()
     convlstm.add(layers.Input(shape=wf_experimental_X_np.shape))
     convlstm.add(layers.ConvLSTM2D(filters=256, kernel_size=(5,5), return_sequences=True))
+=======
+wf_experimental = wildfire_dataset.head(indexers={"time": 10})
+# print(wf_experimental)
+wf_experimental_X_ds = wf_experimental[X_label]
+wf_experimental_X = wf_experimental_X_ds # REPLACE LATER
+# wf_experimental_X = wf_experimental_X_ds.to_numpy()
+# print(wf_experimental_X)
+wf_experimental_y_ds = wf_experimental[y_label]
+# print(wf_experimental_y)
+
+print(wf_experimental_X.dims)
+
+def build_ConvLSTM():
+    convlstm = models.Sequential()
+    convlstm.add(layers.ConvLSTM2D(filters=256, kernel_size=(5,5), return_sequences=True, input_shape=(wf_experimental_X.dims["time"], wf_experimental_X.dims["x"], wf_experimental_X.dims["y"], 1)))
+>>>>>>> 3c9a71057c68194b4bec141cd4ecef8953d0301c
     convlstm.add(layers.BatchNormalization())
     convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(3,3), return_sequences=True))
     convlstm.add(layers.BatchNormalization())
@@ -95,10 +116,14 @@ def build_ConvLSTM():
     return convlstm
 
 model = build_ConvLSTM()
+<<<<<<< HEAD
 print(model.summary())
 epochs = 20
 batch_size = 1
 model.fit(wf_experimental_X_np, wf_experimental_y_np, epochs=epochs, verbose=True)
+=======
+# model.fit()
+>>>>>>> 3c9a71057c68194b4bec141cd4ecef8953d0301c
 
 # epochs = 20
 # batch_size = 1
