@@ -6,6 +6,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+from sklearn.utils import class_weight
 import warnings
 # print(tf.config.list_physical_devices('GPU'))
 print(tf.config.list_physical_devices('GPU'))
@@ -35,7 +36,7 @@ y_label = "burned_areas"
     # wildfire_dataset[features].isel()
 
 # take the first 5 time steps for all x and y to try creating a smaller dataset
-timesteps = 5
+timesteps = 100
 wf_dataset_head = wildfire_dataset.head(indexers={"time": timesteps})
 
 ############# Normalize Data Here ####################
@@ -81,6 +82,14 @@ for index, feature in enumerate(list(wf_ds_norm_X.data_vars)):
 
 # rearrange so that it matches what keras expects (time, features, x, y) instead of (time, x, y, features)
 wf_ds_norm_X_np = np.moveaxis(wf_ds_norm_X_np, 3, 1)
+print("wf_ds_norm_X_np.shape", wf_ds_norm_X_np.shape)
+print("wf_ds_norm_y_np.shape", wf_ds_norm_y_np.shape)
+
+if 1 in wf_ds_norm_y_np:
+    print("Fire exists") 
+print("Output classes: ", np.unique(wf_ds_norm_y_np))
+# class_weights = class_weight.compute_class_weight(class_weight = "balanced", classes = np.unique(wf_ds_norm_y_np), y = wf_ds_norm_y_np)
+# print(class_weights)
 
 # Create samples (samples, time, features, x, y)
 # Each samples are 4 days with 2 day overlap between each one
@@ -125,7 +134,7 @@ print(model.summary())
 epochs = 10
 batch_size = 1
 wf_ds_norm_y_np = np.expand_dims(wf_ds_norm_y_np, axis=0)
-history = model.fit(wf_ds_norm_X_np, wf_ds_norm_y_np, epochs=epochs, verbose=True)
+# history = model.fit(wf_ds_norm_X_np, wf_ds_norm_y_np, epochs=epochs, verbose=True)
 
 
 
