@@ -5,6 +5,7 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 import warnings
 # print(tf.config.list_physical_devices('GPU'))
 print(tf.config.list_physical_devices('GPU'))
@@ -35,30 +36,35 @@ y_label = "burned_areas"
 
 # take the first 5 time steps for all x and y to try creating a smaller dataset
 timesteps = 5
-wf_experimental = wildfire_dataset.head(indexers={"time": timesteps})
-# print(wf_experimental)
-wf_experimental_X_ds = wf_experimental[X_label]
-wf_experimental_X = wf_experimental_X_ds # REPLACE LATER WITH NORMALIZED/CORRECTLY STRUCTURED DATA
-# wf_experimental_X = wf_experimental_X_ds.to_numpy()
-print(wf_experimental_X)
-wf_experimental_y_ds = wf_experimental[y_label] 
-wf_experimental_y = wf_experimental_y_ds # REPLACE LATER WITH NORMALIZED/CORRECTLY STRUCTURED DATA
-# print(wf_experimental_y)
+wf_dataset_head = wildfire_dataset.head(indexers={"time": timesteps})
 
-wf_experimental_y_np = wf_experimental_y.to_numpy()
-wf_experimental_y_np = np.transpose(wf_experimental_y_np, (0,2,1))
-print(wf_experimental_y_np.shape)
+############# Normalize Data Here ####################
 
-# Create the X into a numpy matrix
-wf_experimental_X_np = wf_experimental_X[list(wf_experimental_X.data_vars)[0]].to_numpy()
-wf_experimental_X_np = np.transpose(wf_experimental_X_np, (0,2,1))
-wf_experimental_X_np = np.expand_dims(wf_experimental_X_np, 3)
-for index, feature in enumerate(list(wf_experimental_X.data_vars)):
+wf_dataset_X = wf_dataset_head[X_label]
+wf_ds_norm_X = wf_dataset_X # REPLACE LATER WITH NORMALIZED/CORRECTLY STRUCTURED DATA
+
+wf_dataset_y = wf_dataset_head[y_label] 
+wf_ds_norm_y = wf_dataset_y # REPLACE LATER WITH NORMALIZED/CORRECTLY STRUCTURED DATA
+
+######################################################
+
+# Create the y into a numpy matrix of shape (time, x, y)
+wf_ds_norm_y_np = wf_ds_norm_y.to_numpy()
+wf_ds_norm_y_np = np.transpose(wf_ds_norm_y_np, (0,2,1))
+
+# Create the X into a numpy matrix of shape (time, x, y)
+wf_ds_norm_X_np = wf_ds_norm_X[list(wf_ds_norm_X.data_vars)[0]].to_numpy()
+wf_ds_norm_X_np = np.transpose(wf_ds_norm_X_np, (0,2,1))
+wf_ds_norm_X_np = np.expand_dims(wf_ds_norm_X_np, 3)
+
+# Takes each feature of the xarray Dataset and converts it into a DataArray 
+# Also appends it into the new np array to make shape of (time x, y, features)
+for index, feature in enumerate(list(wf_ds_norm_X.data_vars)):
     print(feature)
-    print(wf_experimental_X_np.shape)
+    print(wf_ds_norm_X_np.shape)
     if(index!=0):
-        # Since wf_experimental_X_np is already initiaklized with the first element, skip
-        new_np_arr = wf_experimental_X[feature].to_numpy()
+        # Since wf_ds_norm_X_np is already initiaklized with the first element, skip
+        new_np_arr = wf_ds_norm_X[feature].to_numpy()
         if(len(new_np_arr.shape) == 2):
             # If a feature doesn't contain a time dimension (n), we extend the 2d matrix to 3d with copy of matrix n times
             # Might be able to use numpy broadcast instead
@@ -68,22 +74,38 @@ for index, feature in enumerate(list(wf_experimental_X.data_vars)):
         else:
             # Transpose feature to "time", "x", "y" format
             new_np_arr = np.transpose(new_np_arr, (0,2,1))
-        print(new_np_arr.shape)
         if (np.isnan(new_np_arr).all()):
             # Precaution to alert if a feature has all NaN values
             warnings.warn(str(feature) + " feature's values are all NaNs")
-        wf_experimental_X_np = np.concatenate((wf_experimental_X_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
+        wf_ds_norm_X_np = np.concatenate((wf_ds_norm_X_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
 
-wf_experimental_X_np = np.moveaxis(wf_experimental_X_np, 3, 1)
-print(wf_experimental_X_np.shape)
+# rearrange so that it matches what keras expects (time, features, x, y) instead of (time, x, y, features)
+wf_ds_norm_X_np = np.moveaxis(wf_ds_norm_X_np, 3, 1)
+
+# Create samples (samples, time, features, x, y)
+# Each samples are 4 days with 2 day overlap between each one
+wf_ds_norm_X_np = np.expand_dims(wf_ds_norm_X_np, axis=0)
 
 
-# print("X dimensions:" , wf_experimental_X.dims)
-# (None, wf_experimental_X.dims["time"], wf_experimental_X.dims["x"], wf_experimental_X.dims["y"], len(wf_experimental_X.data_vars))
+# train test split
+
+# ind = np.random.choice(range(wf_ds_norm_X_np.shape[0]), size=(5000,), replace=False)
+
+# train_X, test_X, train_y, test_y = train_test_split(wf_experimental_X_np, test_size = 0.20, random_state = 1)
+# print(wf_experimental_X_np.shape)
+# print("train_X", train_X.shape)
+# print("test_X", test_X.shape)
+# print("train_y", train_y.shape)
+# print("test_y", test_y.shape)
+
+
+# print("X dimensions:" , wf_ds_norm_X_np.dims)
+# (None, wf_ds_norm_X_np.dims["time"], wf_ds_norm_X_np.dims["x"], wf_ds_norm_X_np.dims["y"], len(wf_ds_norm_X_np.data_vars))
+
 def build_ConvLSTM():
-    print(wf_experimental_X_np.shape)
+    print(wf_ds_norm_X_np.shape)
     convlstm = models.Sequential()
-    convlstm.add(layers.Input(shape=wf_experimental_X_np.shape))
+    convlstm.add(layers.Input(shape=wf_ds_norm_X_np.shape[-4:]))
     convlstm.add(layers.ConvLSTM2D(filters=256, kernel_size=(5,5), return_sequences=True))
     convlstm.add(layers.BatchNormalization())
     convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(3,3), return_sequences=True))
@@ -94,21 +116,20 @@ def build_ConvLSTM():
     convlstm.add(layers.Conv3D(filters=1, kernel_size=(5, 80, 1246), activation="sigmoid"))
     convlstm.compile(
         loss=losses.binary_crossentropy, optimizer=optimizers.Adam(),
+        # metrics=[tf.keras.metrics.Accuracy()]
     )
     return convlstm
 
 model = build_ConvLSTM()
 print(model.summary())
-epochs = 20
+epochs = 10
 batch_size = 1
-wf_experimental_X_np = np.expand_dims(wf_experimental_X_np, axis=0)
-wf_experimental_y_np = np.expand_dims(wf_experimental_y_np, axis=0)
-print(wf_experimental_y_np.shape)
-model.fit(wf_experimental_X_np, wf_experimental_y_np, epochs=epochs, verbose=True)
+wf_ds_norm_y_np = np.expand_dims(wf_ds_norm_y_np, axis=0)
+history = model.fit(wf_ds_norm_X_np, wf_ds_norm_y_np, epochs=epochs, verbose=True)
 
 
 
-# test plot
+# test plots
 # wildfire_da = wildfire_dataset.to_array()
 # print(wildfire_da.loc[:, :10])
 # print(wildfire_dataset["burned_areas"])
