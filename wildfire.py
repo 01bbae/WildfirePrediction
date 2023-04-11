@@ -74,12 +74,14 @@ for index, feature in enumerate(list(wf_experimental_X.data_vars)):
             warnings.warn(str(feature) + " feature's values are all NaNs")
         wf_experimental_X_np = np.concatenate((wf_experimental_X_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
 
+wf_experimental_X_np = np.moveaxis(wf_experimental_X_np, 3, 1)
 print(wf_experimental_X_np.shape)
 
 
 # print("X dimensions:" , wf_experimental_X.dims)
 # (None, wf_experimental_X.dims["time"], wf_experimental_X.dims["x"], wf_experimental_X.dims["y"], len(wf_experimental_X.data_vars))
 def build_ConvLSTM():
+    print(wf_experimental_X_np.shape)
     convlstm = models.Sequential()
     convlstm.add(layers.Input(shape=wf_experimental_X_np.shape))
     convlstm.add(layers.ConvLSTM2D(filters=256, kernel_size=(5,5), return_sequences=True))
@@ -89,7 +91,7 @@ def build_ConvLSTM():
     convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(2,2), return_sequences=True))
     convlstm.add(layers.BatchNormalization())
     convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(1,1), return_sequences=True))
-    convlstm.add(layers.Conv3D(filters=1, kernel_size=(3, 3, 3), activation="sigmoid"))
+    convlstm.add(layers.Conv3D(filters=1, kernel_size=(5, 80, 1246), activation="sigmoid"))
     convlstm.compile(
         loss=losses.binary_crossentropy, optimizer=optimizers.Adam(),
     )
@@ -99,12 +101,14 @@ model = build_ConvLSTM()
 print(model.summary())
 epochs = 20
 batch_size = 1
+wf_experimental_X_np = np.expand_dims(wf_experimental_X_np, axis=0)
+wf_experimental_y_np = np.expand_dims(wf_experimental_y_np, axis=0)
+print(wf_experimental_y_np.shape)
 model.fit(wf_experimental_X_np, wf_experimental_y_np, epochs=epochs, verbose=True)
 
-# epochs = 20
-# batch_size = 1
 
 
+# test plot
 # wildfire_da = wildfire_dataset.to_array()
 # print(wildfire_da.loc[:, :10])
 # print(wildfire_dataset["burned_areas"])
