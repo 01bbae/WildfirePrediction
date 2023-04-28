@@ -120,9 +120,6 @@ print("X_test: ", X_test.shape)
 print("y_train: ", y_train.shape)
 print("y_test: ", y_test.shape)
 
-print("No. of dimensions: ", X_train.ndim)
-print("X_TRAIN TYPE:", type(X_train))
-
 # Normalizing Training Data
 # Combine samples and time
 X_train = X_train.reshape(70, 87, 1253, 983)
@@ -163,7 +160,8 @@ for i in range(X_test.shape[1]):
     X_test_transformed = X_test_transformed.reshape(30, 1253, 983)
     # Store normalized feature in X_train
     X_test[:, i, :, :] = X_test_transformed
-    
+
+# Reshape X_test
 X_test = X_test.reshape(3, 10, 87, 1253, 983)
 print("Shape: ", X_test.shape)
 
