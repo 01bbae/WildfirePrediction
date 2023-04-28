@@ -120,47 +120,35 @@ print("X_test: ", X_test.shape)
 print("y_train: ", y_train.shape)
 print("y_test: ", y_test.shape)
 
-# Normalizing Training Data
+# Normalize X_train and X_test
 # Combine samples and time
 X_train = X_train.reshape(70, 87, 1253, 983)
 print("X_train: ", X_train.shape)
+X_test = X_test.reshape(30, 87, 1253, 983)
+print("X_test: ", X_test.shape)
 
 # Loop through each feature
 for i in range(X_train.shape[1]):
     print("X_train[:,i,:,;].shape: ", X_train[:,i,:,:].shape)
-    # Standard Scaler
-    sc = StandardScaler()
-    # Every X_train feature will be reshaped to a 2d array
-    X_train_2d = X_train[:, i, :, :].reshape(70, 1253*983)
-    # Normalize
-    X_train_transformed = sc.fit_transform(X_train_2d)
-    # Reshape back to 3d
-    X_train_transformed = X_train_transformed.reshape(70, 1253, 983)
-    # Store normalized feature in X_train
-    X_train[:, i, :, :] = X_train_transformed
-
-# Reshape to 5d for keras
-X_train = X_train.reshape(7, 10, 87, 1253, 983)
-print("Shape: ", X_train.shape)
-
-# Normalizing Testing Data
-# Loop through each feature
-X_test = X_test.reshape(30, 87, 1253, 983)
-print("X_train: ", X_train.shape)
-
-for i in range(X_test.shape[1]):
     print("X_test[:,i,:,;].shape: ", X_test[:,i,:,:].shape)
     # Standard Scaler
     sc = StandardScaler()
-    # Every X_train feature will be reshaped to a 2d array
+    # Every X_train/test feature will be reshaped to a 2d array
+    X_train_2d = X_train[:, i, :, :].reshape(70, 1253*983)
     X_test_2d = X_test[:, i, :, :].reshape(30, 1253*983)
     # Normalize
-    X_test_transformed = sc.fit_transform(X_test_2d)
+    X_train_transformed = sc.fit_transform(X_train_2d)
+    X_test_transformed = sc.transform(X_test_2d)
     # Reshape back to 3d
+    X_train_transformed = X_train_transformed.reshape(70, 1253, 983)
     X_test_transformed = X_test_transformed.reshape(30, 1253, 983)
     # Store normalized feature in X_train
+    X_train[:, i, :, :] = X_train_transformed
     X_test[:, i, :, :] = X_test_transformed
 
+# Reshape X_train to 5d for keras
+X_train = X_train.reshape(7, 10, 87, 1253, 983)
+print("Shape: ", X_train.shape)
 # Reshape X_test
 X_test = X_test.reshape(3, 10, 87, 1253, 983)
 print("Shape: ", X_test.shape)
