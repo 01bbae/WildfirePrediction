@@ -37,7 +37,7 @@ y_label = "burned_areas"
 
 # take the first 5 time steps for all x and y to try creating a smaller dataset
 num_samples = 10
-timesteps_per_sample = 10
+timesteps_per_sample = 5
 timesteps = num_samples*timesteps_per_sample
 wf_dataset_head = wildfire_dataset.head(indexers={"time": timesteps})
 
@@ -100,7 +100,7 @@ wf_dataset_X_np = np.reshape(wf_dataset_X_np, (num_samples, timesteps_per_sample
 
 print(wf_dataset_X_np.shape)
 
-# train test split
+# train test split (70/30 split)
 # split along axis 0
 wf_dataset_X_np_split = np.split(wf_dataset_X_np, [7, 10])
 wf_dataset_y_np_split = np.split(wf_dataset_y_np, [7, 10])
@@ -111,7 +111,9 @@ y_test = wf_dataset_y_np_split[1]
 print("X_train: ", X_train.shape)
 print("X_test: ", X_test.shape)
 print("y_train: ", y_train.shape)
+print("y_train: ", y_train.dtype)
 print("y_test: ", y_test.shape)
+print("input shape: ", X_train.shape[-4:])
 
 # ind = np.random.choice(range(wf_dataset_X_np.shape[0]), size=(5000,), replace=False)
 
@@ -146,9 +148,9 @@ def build_ConvLSTM():
 model = build_ConvLSTM()
 print(model.summary())
 epochs = 10
-batch_size = 1
-# wf_dataset_y_np = np.expand_dims(wf_ds_norm_y_np, axis=0)
-# history = model.fit(wf_ds_norm_X_np, wf_ds_norm_y_np, epochs=epochs, verbose=True)
+batch_size = 5
+# y_train = np.expand_dims(y_train, axis=0)
+history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=True)
 
 
 
