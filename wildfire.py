@@ -77,15 +77,7 @@ for index, feature in enumerate(list(wf_dataset_X.data_vars)):
         if (np.isnan(new_np_arr).any()):
             # Precaution to alert if a feature has all NaN values
             warnings.warn(str(feature) + " feature's values has NaNs")
-        # print(np.isnan(np.sum(new_np_arr)))
-        # print(new_np_arr.shape)
-        new_np_arr = np.nan_to_num(new_np_arr)
-        if (np.isnan(new_np_arr).all()):
-            # Precaution to alert if a feature has all NaN values
-            warnings.warn(str(feature) + " feature's values are all NaNs even after removing NaNs")
-        if (np.isnan(new_np_arr).any()):
-            # Precaution to alert if a feature has all NaN values
-            warnings.warn(str(feature) + " feature's values has NaNs even after removing NaNs")
+        # new_np_arr = np.nan_to_num(new_np_arr)
         print(new_np_arr)
         wf_dataset_X_np = np.concatenate((wf_dataset_X_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
     print(feature)
