@@ -42,15 +42,8 @@ timesteps_per_sample = 5
 timesteps = num_samples*timesteps_per_sample
 wf_dataset_head = wildfire_dataset.head(indexers={"time": timesteps})
 
-############# Normalize Data Here ####################
-
 wf_dataset_X = wf_dataset_head[X_label]
-wf_ds_norm_X = wf_dataset_X # REPLACE LATER WITH NORMALIZED/CORRECTLY STRUCTURED DATA
-
-wf_dataset_y = wf_dataset_head[y_label] 
-wf_ds_norm_y = wf_dataset_y # REPLACE LATER WITH NORMALIZED/CORRECTLY STRUCTURED DATA
-
-######################################################
+wf_dataset_y = wf_dataset_head[y_label]
 
 # Create the y into a numpy matrix of shape (time, x, y)
 wf_dataset_y_np = wf_dataset_y.to_numpy()
@@ -81,6 +74,19 @@ for index, feature in enumerate(list(wf_dataset_X.data_vars)):
         if (np.isnan(new_np_arr).all()):
             # Precaution to alert if a feature has all NaN values
             warnings.warn(str(feature) + " feature's values are all NaNs")
+        if (np.isnan(new_np_arr).any()):
+            # Precaution to alert if a feature has all NaN values
+            warnings.warn(str(feature) + " feature's values has NaNs")
+        # print(np.isnan(np.sum(new_np_arr)))
+        # print(new_np_arr.shape)
+        new_np_arr = np.nan_to_num(new_np_arr)
+        if (np.isnan(new_np_arr).all()):
+            # Precaution to alert if a feature has all NaN values
+            warnings.warn(str(feature) + " feature's values are all NaNs even after removing NaNs")
+        if (np.isnan(new_np_arr).any()):
+            # Precaution to alert if a feature has all NaN values
+            warnings.warn(str(feature) + " feature's values has NaNs even after removing NaNs")
+        print(new_np_arr)
         wf_dataset_X_np = np.concatenate((wf_dataset_X_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
     print(feature)
     print(wf_dataset_X_np.shape)
@@ -124,10 +130,7 @@ print("input shape: ", X_train.shape[-4:])
 
 # Normalize X_train and X_test
 # Combine samples and time
-X_train = X_train.reshape(70, 87, 1253, 983)
-print("X_train: ", X_train.shape)
-X_test = X_test.reshape(30, 87, 1253, 983)
-print("X_test: ", X_test.shape)
+
 
 # Loop through each feature
 for i in range(X_train.shape[1]):
