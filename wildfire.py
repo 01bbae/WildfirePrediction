@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.utils import class_weight
+from sklearn import preprocessing
 import warnings
 # print(tf.config.list_physical_devices('GPU'))
 print(tf.config.list_physical_devices('GPU'))
@@ -60,6 +61,8 @@ wf_dataset_X_np = wf_dataset_X[list(wf_dataset_X.data_vars)[0]].to_numpy()
 wf_dataset_X_np = np.transpose(wf_dataset_X_np, (0,2,1))
 wf_dataset_X_np = np.expand_dims(wf_dataset_X_np, 3)
 
+
+print("data vars:", type(wf_dataset_X.data_vars))
 # Takes each feature of the xarray Dataset and converts it into a DataArray 
 # Also appends it into the new np array to make shape of (time x, y, features)
 for index, feature in enumerate(list(wf_dataset_X.data_vars)):
@@ -96,7 +99,10 @@ print("Output classes: ", np.unique(wf_dataset_y_np))
 # Create samples (samples, time, features, x, y)
 # Each samples are 4 days with 2 day overlap between each one
 wf_dataset_X_np = np.expand_dims(wf_dataset_X_np, axis=0)
+print("wf_dataset_X_np:", type(wf_dataset_X_np))
+print("wf_dataset_X_np(expand dims):", wf_dataset_X_np)
 wf_dataset_X_np = np.reshape(wf_dataset_X_np, (num_samples, timesteps_per_sample, wf_dataset_X_np.shape[2], wf_dataset_X_np.shape[3], wf_dataset_X_np.shape[4]))
+print("wf_dataset_X_np(reshape):", type(wf_dataset_X_np))
 
 print(wf_dataset_X_np.shape)
 
@@ -104,6 +110,7 @@ print(wf_dataset_X_np.shape)
 # split along axis 0
 wf_dataset_X_np_split = np.split(wf_dataset_X_np, [7, 10])
 wf_dataset_y_np_split = np.split(wf_dataset_y_np, [7, 10])
+print("wf_dataset_X_np_split:", type(wf_dataset_X_np_split))
 X_train = wf_dataset_X_np_split[0]
 X_test = wf_dataset_X_np_split[1]
 y_train = wf_dataset_y_np_split[0]
@@ -115,18 +122,38 @@ print("y_train: ", y_train.dtype)
 print("y_test: ", y_test.shape)
 print("input shape: ", X_train.shape[-4:])
 
-# ind = np.random.choice(range(wf_dataset_X_np.shape[0]), size=(5000,), replace=False)
+# Normalize X_train and X_test
+# Combine samples and time
+X_train = X_train.reshape(70, 87, 1253, 983)
+print("X_train: ", X_train.shape)
+X_test = X_test.reshape(30, 87, 1253, 983)
+print("X_test: ", X_test.shape)
 
-# train_X, test_X, train_y, test_y = train_test_split(wf_experimental_X_np, test_size = 0.20, random_state = 1)
-# print(wf_experimental_X_np.shape)
-# print("train_X", train_X.shape)
-# print("test_X", test_X.shape)
-# print("train_y", train_y.shape)
-# print("test_y", test_y.shape)
+# Loop through each feature
+for i in range(X_train.shape[1]):
+    print("X_train[:,i,:,;].shape: ", X_train[:,i,:,:].shape)
+    print("X_test[:,i,:,;].shape: ", X_test[:,i,:,:].shape)
+    # Standard Scaler
+    sc = StandardScaler()
+    # Every X_train/test feature will be reshaped to a 2d array
+    X_train_2d = X_train[:, i, :, :].reshape(70, 1253*983)
+    X_test_2d = X_test[:, i, :, :].reshape(30, 1253*983)
+    # Normalize
+    X_train_transformed = sc.fit_transform(X_train_2d)
+    X_test_transformed = sc.transform(X_test_2d)
+    # Reshape back to 3d
+    X_train_transformed = X_train_transformed.reshape(70, 1253, 983)
+    X_test_transformed = X_test_transformed.reshape(30, 1253, 983)
+    # Store normalized feature in X_train
+    X_train[:, i, :, :] = X_train_transformed
+    X_test[:, i, :, :] = X_test_transformed
 
-
-# print("X dimensions:" , wf_dataset_X_np.dims)
-# (None, wf_dataset_X_np.dims["time"], wf_dataset_X_np.dims["x"], wf_dataset_X_np.dims["y"], len(wf_dataset_X_np.data_vars))
+# Reshape X_train to 5d for keras
+X_train = X_train.reshape(7, 10, 87, 1253, 983)
+print("Shape: ", X_train.shape)
+# Reshape X_test
+X_test = X_test.reshape(3, 10, 87, 1253, 983)
+print("Shape: ", X_test.shape)
 
 def build_ConvLSTM():
     convlstm = models.Sequential()
