@@ -103,7 +103,7 @@ print("wf_dataset_X_np(expand dims):", wf_dataset_X_np)
 wf_dataset_X_np = np.reshape(wf_dataset_X_np, (num_samples, timesteps_per_sample, wf_dataset_X_np.shape[2], wf_dataset_X_np.shape[3], wf_dataset_X_np.shape[4]))
 print("wf_dataset_X_np(reshape):", type(wf_dataset_X_np))
 
-print(wf_dataset_X_np.shape)
+print("wf_dataset_X_np.shape: ", wf_dataset_X_np.shape)
 
 # train test split (70/30 split)
 # split along axis 0
@@ -122,33 +122,27 @@ print("y_test: ", y_test.shape)
 print("input shape: ", X_train.shape[-4:])
 
 # Normalize X_train and X_test
-# Combine samples and time
-
-
+#(samples, time, channels, rows, cols)
 # Loop through each feature
 for i in range(X_train.shape[1]):
-    print("X_train[:,i,:,;].shape: ", X_train[:,i,:,:].shape)
-    print("X_test[:,i,:,;].shape: ", X_test[:,i,:,:].shape)
+    print("X_train[:,i,:,;].shape: ", X_train[:,:,i,:,:].shape)
+    print("X_test[:,i,:,;].shape: ", X_test[:,:,i,:,:].shape)
     # Standard Scaler
     sc = StandardScaler()
     # Every X_train/test feature will be reshaped to a 2d array
-    X_train_2d = X_train[:, i, :, :].reshape(70, 1253*983)
-    X_test_2d = X_test[:, i, :, :].reshape(30, 1253*983)
+    X_train_2d = X_train[:,:,i,:,:].reshape(X_train.shape[0]*X_train.shape[1], X_train.shape[3]*X_train.shape[4])
+    X_test_2d = X_test[:,:,i,:,:].reshape(X_test.shape[0]*X_test.shape[1], X_test.shape[3]*X_test.shape[4])
     # Normalize
     X_train_transformed = sc.fit_transform(X_train_2d)
     X_test_transformed = sc.transform(X_test_2d)
-    # Reshape back to 3d
-    X_train_transformed = X_train_transformed.reshape(70, 1253, 983)
-    X_test_transformed = X_test_transformed.reshape(30, 1253, 983)
+    # Reshape to 4d (samples, time, x, y)
+    X_train_transformed = X_train_transformed.reshape(X_train.shape[0], X_train.shape[1], X_train.shape[3], X_train.shape[4])
+    X_test_transformed = X_test_transformed.reshape(X_test.shape[0], X_test.shape[1], X_test.shape[3], X_test.shape[4])
     # Store normalized feature in X_train
-    X_train[:, i, :, :] = X_train_transformed
-    X_test[:, i, :, :] = X_test_transformed
+    X_train[:,:,i,:,:] = X_train_transformed
+    X_test[:,:,i,:,:] = X_test_transformed
 
-# Reshape X_train to 5d for keras
-X_train = X_train.reshape(7, 10, 87, 1253, 983)
 print("Shape: ", X_train.shape)
-# Reshape X_test
-X_test = X_test.reshape(3, 10, 87, 1253, 983)
 print("Shape: ", X_test.shape)
 
 def build_ConvLSTM():
