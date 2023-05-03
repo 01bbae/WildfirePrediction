@@ -39,8 +39,9 @@ y_label = "burned_areas"
 # take the first 5 time steps for all x and y to try creating a smaller dataset
 num_samples = 10
 timesteps_per_sample = 5
-timesteps = num_samples*timesteps_per_sample
-wf_dataset_head = wildfire_dataset.head(indexers={"time": timesteps})
+timestep_samples = num_samples*timesteps_per_sample
+wf_dataset_head = wildfire_dataset.head(indexers={"time": timesteps_per_sample})
+print(wf_dataset_head)
 
 wf_dataset_X = wf_dataset_head[X_label]
 wf_dataset_y = wf_dataset_head[y_label]
