@@ -26,12 +26,16 @@ y_label = "burned_areas"
 # take the first 5 time steps for all x and y to try creating a smaller dataset
 num_samples = 10
 timesteps_per_sample = 5
+width_limit = 100
+height_limit = 100
 timestep_samples = num_samples*timesteps_per_sample
-dataset_head = wildfire_dataset.head(indexers={"time": timestep_samples})
-print(dataset_head)
+dataset = wildfire_dataset.isel(time=slice(None,timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
+print(dataset)
+# dataset_head = wildfire_dataset.head(indexers={"time": timestep_samples})
+# print(dataset_head)
 
-dataset_X = dataset_head[X_label]
-dataset_y = dataset_head[y_label]
+dataset_X = dataset[X_label]
+dataset_y = dataset[y_label]
 
 # Create the y into a numpy matrix of shape (time, x, y)
 dataset_y_np = dataset_y.to_numpy()
@@ -64,7 +68,7 @@ for index, feature in enumerate(list(dataset_X.data_vars)):
             # Precaution to alert if a feature has all NaN values
             warnings.warn(str(feature) + " feature's values has NaNs")
         # new_np_arr = np.nan_to_num(new_np_arr)
-        # print(new_np_arr)
+        print(new_np_arr.shape)
         dataset_X_np = np.concatenate((dataset_X_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
     print(feature)
     print(dataset_X_np.shape)
@@ -139,7 +143,9 @@ def build_ConvLSTM():
     convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(2,2), data_format="channels_last", return_sequences=True))
     convlstm.add(layers.BatchNormalization())
     convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(1,1), data_format="channels_last", return_sequences=True))
-    convlstm.add(layers.Conv3D(filters=1, kernel_size=(1, 1246, 976), data_format="channels_last", activation="sigmoid"))
+    convlstm.add(layers.Conv3D(filters=1, kernel_size=(1, width_limit-11+4, height_limit-11+4), data_format="channels_last", activation="sigmoid"))
+    # https://www.baeldung.com/cs/convolutional-layer-size
+    # image width/height - sum(kernel width/height) + num_kernels
     # kernel_size=(timesteps_per_sample, 80, 1246)
     convlstm.compile(
         loss=losses.binary_crossentropy, optimizer=optimizers.Adam(), metrics=[tf.keras.metrics.Accuracy()]
