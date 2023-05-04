@@ -109,9 +109,16 @@ y_test = dataset_y_np_split[1]
 # NEW Normalize X_train and X_test
 #(samples, time, channels, rows, cols)
 # Loop through each feature
-for i in range(X_train.shape[1]):
-    print("X_train[:,i,:,;].shape: ", X_train[:,:,:,:,i].shape)
-    print("X_test[:,i,:,;].shape: ", X_test[:,:,:,:,i].shape)
+for i in range(X_train.shape[4]):
+    print("X_train[:,:,:,;,i].shape: ", X_train[:,:,:,:,i].shape)
+    print("X_test[:,:,:,;,i].shape: ", X_test[:,:,:,:,i].shape)
+    
+    # Replace NaNs with mean or median
+    X_train[np.isnan(X_train)] = np.nanmean(X_train[:,:,:,:,i])
+    X_test[np.isnan(X_test)] = np.nanmean(X_test[:,:,:,:,i])
+    # X_train[np.isnan(X_train)] = np.nanmedian(X_train[:,:,:,:,i])
+    # X_test[np.isnan(X_test)] = np.nanmedian(X_test[:,:,:,:,i])
+    
     # Standard Scaler
     sc = StandardScaler()
     # Every X_train/test feature will be reshaped to a 2d array
@@ -126,6 +133,7 @@ for i in range(X_train.shape[1]):
     # Store normalized feature in X_train
     X_train[:,:,:,:,i] = X_train_transformed
     X_test[:,:,:,:,i] = X_test_transformed
+    
 
 print("X_train: ", X_train.shape)
 print("X_test: ", X_test.shape)
