@@ -168,9 +168,28 @@ y_train_test = np.expand_dims(y_train, axis=(2,3,4))
 print(y_train_test.shape)
 history = model.fit(X_train, y_train_test, epochs=epochs, batch_size=batch_size, verbose=True)
 
+# print model keys
+print(history.history.keys())
+# accuracy graph
+plt.plot(history.history['accuracy'])
+# plt.plot(history.history['val_accuracy'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
+plt.savefig('accuracy.png')
 
+# loss graph
+plt.plot(history.history['loss'])
+# plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
+plt.savefig('loss.png')
 
-# test plots
 # wildfire_da = wildfire_dataset.to_array()
 # print(wildfire_da.loc[:, :10])
 # print(wildfire_dataset["burned_areas"])
