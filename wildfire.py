@@ -102,9 +102,16 @@ y_test = dataset_y_np_split[1]
 # NEW Normalize X_train and X_test
 #(samples, time, rows, cols, channels)
 # Loop through each feature
-for i in range(X_train.shape[1]):
-    print("X_train[:,i,:,;].shape: ", X_train[:,:,:,:,i].shape)
-    print("X_test[:,i,:,;].shape: ", X_test[:,:,:,:,i].shape)
+for i in range(X_train.shape[4]):
+    print("X_train[:,:,:,;,i].shape: ", X_train[:,:,:,:,i].shape)
+    print("X_test[:,:,:,;,i].shape: ", X_test[:,:,:,:,i].shape)
+    
+    # Replace NaNs with mean or median
+    X_train[np.isnan(X_train)] = np.nanmean(X_train[:,:,:,:,i])
+    X_test[np.isnan(X_test)] = np.nanmean(X_test[:,:,:,:,i])
+    # X_train[np.isnan(X_train)] = np.nanmedian(X_train[:,:,:,:,i])
+    # X_test[np.isnan(X_test)] = np.nanmedian(X_test[:,:,:,:,i])
+    
     # Standard Scaler
     sc = StandardScaler()
     # Every X_train/test feature will be reshaped to a 2d array
@@ -119,6 +126,7 @@ for i in range(X_train.shape[1]):
     # Store normalized feature in X_train
     X_train[:,:,:,:,i] = X_train_transformed
     X_test[:,:,:,:,i] = X_test_transformed
+    
 
 print("X_train: ", X_train.shape)
 print("X_test: ", X_test.shape)
@@ -152,9 +160,28 @@ batch_size = 1
 # y_train_test = np.expand_dims(y_train, axis=(2,3,4))
 history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=True)
 
+# print model keys
+print(history.history.keys())
+# accuracy graph
+plt.plot(history.history['accuracy'])
+# plt.plot(history.history['val_accuracy'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
+plt.savefig('accuracy.png')
 
+# loss graph
+plt.plot(history.history['loss'])
+# plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
+plt.show()
+plt.savefig('loss.png')
 
-# test plots
 # wildfire_da = wildfire_dataset.to_array()
 # print(wildfire_da.loc[:, :10])
 # print(wildfire_dataset["burned_areas"])
