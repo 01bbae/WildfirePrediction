@@ -67,8 +67,7 @@ for index, feature in enumerate(list(dataset_X.data_vars)):
         if (np.isnan(new_np_arr).any()):
             # Precaution to alert if a feature has all NaN values
             warnings.warn(str(feature) + " feature's values has NaNs")
-        # new_np_arr = np.nan_to_num(new_np_arr)
-        print(new_np_arr.shape)
+        # print(new_np_arr.shape)
         dataset_X_np = np.concatenate((dataset_X_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
     print(feature)
     print(dataset_X_np.shape)
@@ -79,27 +78,21 @@ print("Output classes: ", np.unique(dataset_y_np))
 # class_weights = class_weight.compute_class_weight(class_weight = "balanced", classes = np.unique(wf_dataset_y_np), y = wf_dataset_y_np)
 # print(class_weights)
 
-# Create samples (samples, time, features, x, y)
+# Create samples (samples, time, x, y, features)
 # NOT IMPLEMENTED: Each samples are 4 days with 2 day overlap between each one
-dataset_X_np = np.expand_dims(dataset_X_np, axis=0)
-print("wf_dataset_X_np:", type(dataset_X_np))
-print("wf_dataset_X_np(expand dims):", dataset_X_np)
-dataset_X_np = np.reshape(dataset_X_np, (num_samples, timesteps_per_sample, dataset_X_np.shape[2], dataset_X_np.shape[3], dataset_X_np.shape[4]))
-print("dataset_X_np(reshape):", type(dataset_X_np))
-
 print("dataset_X_np.shape: ", dataset_X_np.shape)
+print("dataset_y_np.shape: ", dataset_y_np.shape)
+dataset_X_np = np.expand_dims(dataset_X_np, axis=0)
+dataset_X_np = np.reshape(dataset_X_np, (num_samples, timesteps_per_sample, dataset_X_np.shape[2], dataset_X_np.shape[3], dataset_X_np.shape[4]))
+dataset_y_np = np.reshape(dataset_y_np, (num_samples, timesteps_per_sample, dataset_y_np.shape[1], dataset_y_np.shape[2]))
+print("dataset_X_np.shape: ", dataset_X_np.shape)
+print("dataset_y_np.shape: ", dataset_y_np.shape)
 
-# Deal with y labels
-replacement_y_np = np.zeros(timestep_samples)
-for i in range(dataset_y_np.shape[0]):
-    if 1 in dataset_y_np[i]:
-        replacement_y_np[i] = 1
-replacement_y_np = np.reshape(replacement_y_np, (num_samples, timesteps_per_sample))
 
 # train test split (70/30 split)
 # split along axis 0
 dataset_X_np_split = np.split(dataset_X_np, [7, 10])
-dataset_y_np_split = np.split(replacement_y_np, [7, 10])
+dataset_y_np_split = np.split(dataset_y_np, [7, 10])
 print("dataset_X_np_split:", type(dataset_X_np_split))
 X_train = dataset_X_np_split[0]
 X_test = dataset_X_np_split[1]
@@ -107,7 +100,7 @@ y_train = dataset_y_np_split[0]
 y_test = dataset_y_np_split[1]
 
 # NEW Normalize X_train and X_test
-#(samples, time, channels, rows, cols)
+#(samples, time, rows, cols, channels)
 # Loop through each feature
 for i in range(X_train.shape[1]):
     print("X_train[:,i,:,;].shape: ", X_train[:,:,:,:,i].shape)
@@ -136,17 +129,17 @@ print("input shape: ", X_train.shape[-4:])
 def build_ConvLSTM():
     convlstm = models.Sequential()
     convlstm.add(layers.Input(shape=X_train.shape[-4:]))
-    convlstm.add(layers.ConvLSTM2D(filters=256, kernel_size=(5,5), data_format="channels_last", return_sequences=True))
+    convlstm.add(layers.ConvLSTM2D(filters=256, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(3,3), data_format="channels_last", return_sequences=True))
+    convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(2,2), data_format="channels_last", return_sequences=True))
+    convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(2,2), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(1,1), data_format="channels_last", return_sequences=True))
-    convlstm.add(layers.Conv3D(filters=1, kernel_size=(1, width_limit-11+4, height_limit-11+4), data_format="channels_last", activation="sigmoid"))
+    convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(1,1), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    convlstm.add(layers.Conv3D(filters=1, kernel_size=(3, 3, 3), padding="same", data_format="channels_last", activation="sigmoid"))
     # https://www.baeldung.com/cs/convolutional-layer-size
     # image width/height - sum(kernel width/height) + num_kernels
-    # kernel_size=(timesteps_per_sample, 80, 1246)
+    # kernel_size=(1, width_limit-11+4, height_limit-11+4)
     convlstm.compile(
         loss=losses.binary_crossentropy, optimizer=optimizers.Adam(), metrics=[tf.keras.metrics.Accuracy()]
     )
@@ -156,9 +149,8 @@ model = build_ConvLSTM()
 print(model.summary())
 epochs = 10
 batch_size = 1
-y_train_test = np.expand_dims(y_train, axis=(2,3,4))
-print(y_train_test.shape)
-history = model.fit(X_train, y_train_test, epochs=epochs, batch_size=batch_size, verbose=True)
+# y_train_test = np.expand_dims(y_train, axis=(2,3,4))
+history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=True)
 
 
 
