@@ -24,13 +24,18 @@ X_label = [label for label in feature_list if label not in remove_label]
 y_label = "burned_areas"
 
 # take the first 5 time steps for all x and y to try creating a smaller dataset
-num_samples = 10
+num_samples = 100
 timesteps_per_sample = 5
 width_limit = 100
 height_limit = 100
 timestep_samples = num_samples*timesteps_per_sample
-dataset = wildfire_dataset.isel(time=slice(None,timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
-print(dataset)
+# partial dataset
+# dataset = wildfire_dataset.isel(time=slice(None,timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
+
+# full dataset
+dataset = wildfire_dataset.isel(time=slice(None,timestep_samples))
+
+# print(dataset)
 # dataset_head = wildfire_dataset.head(indexers={"time": timestep_samples})
 # print(dataset_head)
 
@@ -74,7 +79,8 @@ for index, feature in enumerate(list(dataset_X.data_vars)):
 
 if 1 in dataset_y_np:
     print("Fire exists") 
-print("Output classes: ", np.unique(dataset_y_np))
+output_classes = np.unique(dataset_y_np)
+print("Output classes: ", output_classes)
 # class_weights = class_weight.compute_class_weight(class_weight = "balanced", classes = np.unique(wf_dataset_y_np), y = wf_dataset_y_np)
 # print(class_weights)
 
@@ -103,8 +109,9 @@ y_test = dataset_y_np_split[1]
 #(samples, time, rows, cols, channels)
 # Loop through each feature
 for i in range(X_train.shape[4]):
-    print("X_train[:,:,:,;,i].shape: ", X_train[:,:,:,:,i].shape)
-    print("X_test[:,:,:,;,i].shape: ", X_test[:,:,:,:,i].shape)
+    # print("X_train[:,:,:,;,i].shape: ", X_train[:,:,:,:,i].shape)
+    # print("X_test[:,:,:,;,i].shape: ", X_test[:,:,:,:,i].shape)
+    print("Normalizing " + str(i) + " out of " + str(X_train.shape[4]))
     
     # Replace NaNs with mean or median
     X_train[np.isnan(X_train)] = np.nanmean(X_train[:,:,:,:,i])
@@ -148,6 +155,7 @@ def build_ConvLSTM():
     # https://www.baeldung.com/cs/convolutional-layer-size
     # image width/height - sum(kernel width/height) + num_kernels
     # kernel_size=(1, width_limit-11+4, height_limit-11+4)
+    # https://keras.io/api/layers/recurrent_layers/time_distributed/
     convlstm.compile(
         loss=losses.binary_crossentropy, optimizer=optimizers.Adam(), metrics=[tf.keras.metrics.Accuracy()]
     )
@@ -157,8 +165,12 @@ model = build_ConvLSTM()
 print(model.summary())
 epochs = 10
 batch_size = 1
+class_weight = dict.fromkeys(output_classes)
+class_weight[output_classes[0]] = 0.1
+class_weight[output_classes[1]] = 0.9
+print(class_weight)
 # y_train_test = np.expand_dims(y_train, axis=(2,3,4))
-history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=True)
+history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, class_weight=class_weight, verbose=True)
 
 # print model keys
 print(history.history.keys())
