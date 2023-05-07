@@ -1,3 +1,4 @@
+import math
 import tensorflow as tf
 import tensorflow.keras
 from tensorflow.keras import layers, models, losses, optimizers
@@ -5,156 +6,246 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.utils import class_weight
-from sklearn import preprocessing
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import warnings
 print(tf.config.list_physical_devices('GPU'))
 
-# import dataset
-datapath = "../wildfire_dataset.nc"
-wildfire_dataset = xr.open_dataset(datapath, engine="netcdf4")
-# print(wildfire_dataset)
-feature_list = wildfire_dataset.data_vars
-feature_nums = len(feature_list)
+print("If its the first time running this script, select n for the following question")
+x=input("Use Loaded Dataset? [Y]/n: ")
 
-# maybe predict more than one thing later, but for not only try to predict burned areas
-remove_label = ["burned_areas", "ignition_points", "number_of_fires", "POP_DENS_2009", "POP_DENS_2010", "POP_DENS_2011", "POP_DENS_2012", "POP_DENS_2013", "POP_DENS_2014", "POP_DENS_2015", "POP_DENS_2016", "POP_DENS_2017", "POP_DENS_2018", "POP_DENS_2019", "POP_DENS_2020", "POP_DENS_2021", "ROAD_DISTANCE"]
-X_label = [label for label in feature_list if label not in remove_label]
-y_label = "burned_areas"
+if x == "n":
+    # import dataset
+    datapath = "../wildfire_dataset.nc"
+    wildfire_dataset = xr.open_dataset(datapath, engine="netcdf4")
+    # print(wildfire_dataset)
+    feature_list = wildfire_dataset.data_vars
+    feature_nums = len(feature_list)
 
-# take the first 5 time steps for all x and y to try creating a smaller dataset
-num_samples = 100
-timesteps_per_sample = 5
-width_limit = 100
-height_limit = 100
-timestep_samples = num_samples*timesteps_per_sample
-# partial dataset
-# dataset = wildfire_dataset.isel(time=slice(None,timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
+    # maybe predict more than one thing later, but for not only try to predict burned areas
+    remove_label = ["burned_areas", "ignition_points", "number_of_fires", "POP_DENS_2009", "POP_DENS_2010", "POP_DENS_2011", "POP_DENS_2012", "POP_DENS_2013", "POP_DENS_2014", "POP_DENS_2015", "POP_DENS_2016", "POP_DENS_2017", "POP_DENS_2018", "POP_DENS_2019", "POP_DENS_2020", "POP_DENS_2021", "ROAD_DISTANCE"]
+    X_label = [label for label in feature_list if label not in remove_label]
+    y_label = "burned_areas"
+    Xy_label = X_label
+    Xy_label.append(y_label)
 
-# full dataset
-dataset = wildfire_dataset.isel(time=slice(None,timestep_samples))
+    # take the first 5 time steps for all x and y to try creating a smaller dataset
+    start_timestep = 100
+    num_samples = 500
+    timesteps_per_sample = 1
+    width_limit = 200
+    height_limit = 200
+    timestep_samples = num_samples*timesteps_per_sample
+    train_size = 0.8
 
-# print(dataset)
-# dataset_head = wildfire_dataset.head(indexers={"time": timestep_samples})
-# print(dataset_head)
+    # DATA PROCESSING
+    # 1) Train Test Split
+    # 2) Convert train, test sets into np array
+    # 3) For the train set, weight/multiply the fire dataset and combine it with the non fire dataset (Class weighting)
+    # 4) Leave the test set as is (No need for class weighting because only used for testing)
 
-dataset_X = dataset[X_label]
-dataset_y = dataset[y_label]
+    # partial dataset (limit x and y coords)
+    train_dataset = wildfire_dataset.isel(time=slice(start_timestep, start_timestep+timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
+    train_dataset = train_dataset[Xy_label]
+    test_dataset = wildfire_dataset.isel(time=slice(math.floor(timestep_samples*train_size),timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
+    test_dataset = test_dataset[Xy_label]
 
-# Create the y into a numpy matrix of shape (time, x, y)
-dataset_y_np = dataset_y.to_numpy()
-dataset_y_np = np.transpose(dataset_y_np, (0,2,1))
-
-# Create the X into a numpy matrix of shape (time, x, y)
-dataset_X_np = dataset_X[list(dataset_X.data_vars)[0]].to_numpy()
-dataset_X_np = np.transpose(dataset_X_np, (0,2,1))
-dataset_X_np = np.expand_dims(dataset_X_np, 3)
-
-# Takes each feature of the xarray Dataset and converts it into a DataArray 
-# Also appends it into the new np array to make shape of (time x, y, features)
-for index, feature in enumerate(list(dataset_X.data_vars)):
-    if(index!=0):
-        # Since wf_dataset_X_np is already initiaklized with the first element, skip
-        new_np_arr = dataset_X[feature].to_numpy()
-        if(len(new_np_arr.shape) == 2):
-            # If a feature doesn't contain a time dimension (n), we extend the 2d matrix to 3d with copy of matrix n times
-            # Might be able to use numpy broadcast instead
-            new_np_arr = np.repeat(new_np_arr[:, :, np.newaxis], timestep_samples, axis=2)
-            # Transpose feature to "time", "x", "y" format
-            new_np_arr = np.transpose(new_np_arr)
-        else:
-            # Transpose feature to "time", "x", "y" format
-            new_np_arr = np.transpose(new_np_arr, (0,2,1))
-        if (np.isnan(new_np_arr).all()):
-            # Precaution to alert if a feature has all NaN values
-            warnings.warn(str(feature) + " feature's values are all NaNs")
-        if (np.isnan(new_np_arr).any()):
-            # Precaution to alert if a feature has all NaN values
-            warnings.warn(str(feature) + " feature's values has NaNs")
-        # print(new_np_arr.shape)
-        dataset_X_np = np.concatenate((dataset_X_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
-    print(feature)
-    print(dataset_X_np.shape)
-
-if 1 in dataset_y_np:
-    print("Fire exists") 
-output_classes = np.unique(dataset_y_np)
-print("Output classes: ", output_classes)
-# class_weights = class_weight.compute_class_weight(class_weight = "balanced", classes = np.unique(wf_dataset_y_np), y = wf_dataset_y_np)
-# print(class_weights)
-
-# Create samples (samples, time, x, y, features)
-# NOT IMPLEMENTED: Each samples are 4 days with 2 day overlap between each one
-print("dataset_X_np.shape: ", dataset_X_np.shape)
-print("dataset_y_np.shape: ", dataset_y_np.shape)
-dataset_X_np = np.expand_dims(dataset_X_np, axis=0)
-dataset_X_np = np.reshape(dataset_X_np, (num_samples, timesteps_per_sample, dataset_X_np.shape[2], dataset_X_np.shape[3], dataset_X_np.shape[4]))
-dataset_y_np = np.reshape(dataset_y_np, (num_samples, timesteps_per_sample, dataset_y_np.shape[1], dataset_y_np.shape[2]))
-print("dataset_X_np.shape: ", dataset_X_np.shape)
-print("dataset_y_np.shape: ", dataset_y_np.shape)
+    # full dataset
+    # train_dataset = wildfire_dataset.isel(time=slice(start_timestep, start_timestep+timestep_samples))
+    # train_dataset = train_dataset[Xy_label]
 
 
-# train test split (70/30 split)
-# split along axis 0
-dataset_X_np_split = np.split(dataset_X_np, [7, 10])
-dataset_y_np_split = np.split(dataset_y_np, [7, 10])
-print("dataset_X_np_split:", type(dataset_X_np_split))
-X_train = dataset_X_np_split[0]
-X_test = dataset_X_np_split[1]
-y_train = dataset_y_np_split[0]
-y_test = dataset_y_np_split[1]
+    # axis_2_size is the timesteps for the dataset
+    def dataset_to_np(dataset, axis_2_size):
+        # # Create the X into a numpy matrix of shape (time, x, y)
+        ds_np = dataset[list(dataset.data_vars)[0]].to_numpy()
+        ds_np = np.transpose(ds_np, (0,2,1))
+        ds_np = np.expand_dims(ds_np, 3)
 
-# NEW Normalize X_train and X_test
-#(samples, time, rows, cols, channels)
-# Loop through each feature
-for i in range(X_train.shape[4]):
-    # print("X_train[:,:,:,;,i].shape: ", X_train[:,:,:,:,i].shape)
-    # print("X_test[:,:,:,;,i].shape: ", X_test[:,:,:,:,i].shape)
-    print("Normalizing " + str(i) + " out of " + str(X_train.shape[4]))
+        for index, feature in enumerate(list(dataset.data_vars)):
+            print(feature)
+            if(index > 0):
+                # Since wf_dataset_X_np is already initiaklized with the first element, skip
+                new_np_arr = dataset[feature].to_numpy()
+                # print("new_np_arr shape: ",new_np_arr.shape)
+                if(len(new_np_arr.shape) == 2):
+                    # If a feature doesn't contain a time dimension (n), we extend the 2d matrix to 3d with copy of matrix n times
+                    # Might be able to use numpy broadcast instead
+                    new_np_arr = np.repeat(new_np_arr[:, :, np.newaxis], axis_2_size, axis=2)
+                    # Transpose feature to "time", "x", "y" format
+                    new_np_arr = np.transpose(new_np_arr)
+                else:
+                    # Transpose feature to "time", "x", "y" format
+                    new_np_arr = np.transpose(new_np_arr, (0,2,1))
+                if (np.isnan(new_np_arr).all()):
+                    # Precaution to alert if a feature has all NaN values
+                    warnings.warn(str(feature) + " feature's values are all NaNs")
+                if (np.isnan(new_np_arr).any()):
+                    # Precaution to alert if a feature has all NaN values
+                    warnings.warn(str(feature) + " feature's values has NaNs")
+                # print(new_np_arr.shape)
+                ds_np = np.concatenate((ds_np, np.expand_dims(new_np_arr, axis=3)), axis=3)
+            print(ds_np.shape)
+        return ds_np
+
+    # Convert train and test to numpy arrays (time, x, y)
+    train_np = dataset_to_np(train_dataset, timestep_samples)
+
+    # Split dataset into wildfire and non-wildfire datasets
+    # get indicies of datapoints where wildfire occurred
+    # set of 3 arrays where each array represents index of (time, x, y)
+    wildfire_indicies = np.where(train_np[:,:,:,-1] == 1.0)
+    # print(wildfire_indicies)
+
+    # if fire occured at a timestep, put entire x,y grid into a seperate wildfire dataset
+    fire_train = np.take(train_np, np.unique(wildfire_indicies[0]), axis=0)
+    nonfire_train = np.delete(train_np, np.unique(wildfire_indicies[0]), axis=0)
+    # print(fire_train)
+    # print(fire_train.shape)
+    # print(nonfire_train)
+    # print(nonfire_train.shape)
+
+    if fire_train.shape[0] == 0:
+        print("No wildfire data to use")
+    else:
+        print("Fire Samples: ", fire_train.shape[0])
+        # throw error for not having fire datapoints to weight/multiply
+
+    # doubling wildfire data
+    ext_fire_train = np.repeat(fire_train, 2, axis=0)
+
+
+    # combine both wildfire and non wildfire train datasets
+    train_dataset = np.concatenate((nonfire_train, ext_fire_train))
+
+    actual_train_size = train_dataset.shape[0]
+    X_train = train_dataset[:,:,:,:-1]
+    y_train = train_dataset[:,:,:,-1]
+
+
+    # Handle Test
+    actual_test_size = math.floor(actual_train_size*(1-train_size)//train_size)
+
+    # full test set
+    # test_dataset = wildfire_dataset.isel(time=slice(start_timestep+timestep_samples, start_timestep+timestep_samples+actual_test_size))
+    # test_dataset = test_dataset[Xy_label]
+
+    # partial test set
+    test_dataset = wildfire_dataset.isel(time=slice(start_timestep+timestep_samples, start_timestep+timestep_samples+actual_test_size), x=slice(None, width_limit), y=slice(None,height_limit))
+    test_dataset = test_dataset[Xy_label]
+
+    test_np = dataset_to_np(test_dataset, actual_test_size)
+
+
+    X_test = test_np[:,:,:,:-1]
+    y_test = test_np[:,:,:,-1]
+
+
+    print("X_train: ", X_train.shape)
+    print("X_test: ", X_test.shape)
+    print("y_train: ", y_train.shape)
+    print("y_test: ", y_test.shape)
+
+    def normalize(X_train, X_test):
+        # NEW Normalize X_train and X_test
+        #(samples, time, rows, cols, channels)
+        # Loop through each feature
+        for i in range(X_train.shape[4]):
+            # print("X_train[:,:,:,;,i].shape: ", X_train[:,:,:,:,i].shape)
+            # print("X_test[:,:,:,;,i].shape: ", X_test[:,:,:,:,i].shape)
+            print("Normalizing " + str(i) + " out of " + str(X_train.shape[4]-1))
+
+            # Replace NaNs with mean or median
+            X_train[np.isnan(X_train)] = np.nanmean(X_train[:,:,:,:,i])
+            X_test[np.isnan(X_test)] = np.nanmean(X_test[:,:,:,:,i])
+            # X_train[np.isnan(X_train)] = np.nanmedian(X_train[:,:,:,:,i])
+            # X_test[np.isnan(X_test)] = np.nanmedian(X_test[:,:,:,:,i])
+
+            # Standard Scaler
+            # sc = StandardScaler()
+            # Every X_train/test feature will be reshaped to a 2d array
+            # X_train_2d = X_train[:,:,:,:,i].reshape(X_train.shape[0]*X_train.shape[1], X_train.shape[2]*X_train.shape[3])
+            # X_test_2d = X_test[:,:,:,:,i].reshape(X_test.shape[0]*X_test.shape[1], X_test.shape[2]*X_test.shape[3])
+            # Normalize
+            X_train_norm = X_train
+            X_test_norm = X_test
+            X_train_norm[:,:,:,:,i] = (X_train[:,:,:,:,i] - X_train[:,:,:,:,i].mean())/(X_train[:,:,:,:,i].std())
+            X_test_norm[:,:,:,:,i] = (X_test[:,:,:,:,i] - X_train[:,:,:,:,i].mean())/(X_train[:,:,:,:,i].std())
+            print("mean: ", X_train[:,:,:,:,i].mean())
+            print("std: ", X_train[:,:,:,:,i].std())
+
+
+            # X_train_transformed = sc.fit_transform(X_train_2d)
+            # X_test_transformed = sc.transform(X_test_2d)
+            # Reshape to 4d (samples, time, x, y)
+            # X_train_transformed = X_train_transformed.reshape(X_train.shape[0], X_train.shape[1], X_train.shape[2], X_train.shape[3])
+            # X_test_transformed = X_test_transformed.reshape(X_test.shape[0], X_test.shape[1], X_test.shape[2], X_test.shape[3])
+            # Store normalized feature in X_train
+            # X_train[:,:,:,:,i] = X_train_transformed
+            # X_test[:,:,:,:,i] = X_test_transformed
+        return X_train_norm, X_test_norm
+    X_train = np.reshape(X_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, X_train.shape[1], X_train.shape[2], X_train.shape[3]))
+    X_test = np.reshape(X_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, X_test.shape[1], X_test.shape[2], X_test.shape[3]))
+    y_train = np.reshape(y_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, y_train.shape[1], y_train.shape[2]))
+    y_test = np.reshape(y_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, y_test.shape[1], y_test.shape[2]))
+
+    X_train_norm, X_test_norm = normalize(X_train, X_test)
     
-    # Replace NaNs with mean or median
-    X_train[np.isnan(X_train)] = np.nanmean(X_train[:,:,:,:,i])
-    X_test[np.isnan(X_test)] = np.nanmean(X_test[:,:,:,:,i])
-    # X_train[np.isnan(X_train)] = np.nanmedian(X_train[:,:,:,:,i])
-    # X_test[np.isnan(X_test)] = np.nanmedian(X_test[:,:,:,:,i])
-    
-    # Standard Scaler
-    sc = StandardScaler()
-    # Every X_train/test feature will be reshaped to a 2d array
-    X_train_2d = X_train[:,:,:,:,i].reshape(X_train.shape[0]*X_train.shape[1], X_train.shape[2]*X_train.shape[3])
-    X_test_2d = X_test[:,:,:,:,i].reshape(X_test.shape[0]*X_test.shape[1], X_test.shape[2]*X_test.shape[3])
-    # Normalize
-    X_train_transformed = sc.fit_transform(X_train_2d)
-    X_test_transformed = sc.transform(X_test_2d)
-    # Reshape to 4d (samples, time, x, y)
-    X_train_transformed = X_train_transformed.reshape(X_train.shape[0], X_train.shape[1], X_train.shape[2], X_train.shape[3])
-    X_test_transformed = X_test_transformed.reshape(X_test.shape[0], X_test.shape[1], X_test.shape[2], X_test.shape[3])
-    # Store normalized feature in X_train
-    X_train[:,:,:,:,i] = X_train_transformed
-    X_test[:,:,:,:,i] = X_test_transformed
-    
 
-print("X_train: ", X_train.shape)
-print("X_test: ", X_test.shape)
+    # save numpy array in file
+    np.save("X_train_norm", X_train_norm)
+    np.save("X_test_norm", X_test_norm)
+    np.save("y_train", y_train)
+    np.save("y_test", y_test)
+else:
+    X_train_norm = np.load("X_train_norm.npy")
+    X_test_norm = np.load("X_test_norm.npy")
+    y_train = np.load("y_train.npy")
+    y_test = np.load("y_test.npy")
+
+print("X_train: ", X_train_norm.shape)
+print("X_test: ", X_test_norm.shape)
 print("y_train: ", y_train.shape)
 print("y_test: ", y_test.shape)
-print("input shape: ", X_train.shape[-4:])
+print("input shape: ", X_train_norm.shape[-4:])
+
+# check if data still has NaNs
+if np.isnan(X_train_norm).any():
+    print("X_train_norm has nans")
+if np.isnan(X_test_norm).any():
+    print("X_test_norm has nans")
+if np.isnan(y_train).any():
+    print("y_train has nans")
+if np.isnan(y_test).any():
+    print("y_test has nans")
+
+# # Construct a figure on which we will visualize the images.
+# fig, axes = plt.subplots(3,4, figsize=(10, 8))
+
+# # Plot each of the sequential images for one random data example.
+# for idx, ax in enumerate(axes.flat):
+#     ax.imshow(np.squeeze(y_train[idx][0]))
+#     ax.imshow(np.squeeze(y_train[idx][1]))
+#     ax.set_title(f"Frame {idx + 1}")
+#     ax.axis("off")
+
+# # Print information and display the figure.
+# # print(f"Displaying frames for example {data_choice}.")
+# plt.show()
 
 def build_ConvLSTM():
     convlstm = models.Sequential()
-    convlstm.add(layers.Input(shape=X_train.shape[-4:]))
-    convlstm.add(layers.ConvLSTM2D(filters=256, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    convlstm.add(layers.Input(shape=X_train_norm.shape[-4:]))
+    convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(2,2), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    # convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    # convlstm.add(layers.BatchNormalization())
+    convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(2,2), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(1,1), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    convlstm.add(layers.ConvLSTM2D(filters=16, kernel_size=(1,1), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    # convlstm.add(layers.TimeDistributed(layers.Conv2D(filters=1, kernel_size=(3, 3), padding="same")))
     convlstm.add(layers.Conv3D(filters=1, kernel_size=(3, 3, 3), padding="same", data_format="channels_last", activation="sigmoid"))
-    # https://www.baeldung.com/cs/convolutional-layer-size
-    # image width/height - sum(kernel width/height) + num_kernels
-    # kernel_size=(1, width_limit-11+4, height_limit-11+4)
     # https://keras.io/api/layers/recurrent_layers/time_distributed/
     convlstm.compile(
         loss=losses.binary_crossentropy, optimizer=optimizers.Adam(), metrics=[tf.keras.metrics.Accuracy()]
@@ -165,14 +256,26 @@ model = build_ConvLSTM()
 print(model.summary())
 epochs = 10
 batch_size = 1
-class_weight = dict.fromkeys(output_classes)
-class_weight[output_classes[0]] = 0.1
-class_weight[output_classes[1]] = 0.9
-print(class_weight)
-# y_train_test = np.expand_dims(y_train, axis=(2,3,4))
-history = model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, class_weight=class_weight, verbose=True)
+history = model.fit(X_train_norm, y_train, epochs=epochs, verbose=True)
+# validation_data=(X_test_norm,y_test)
+
+y_hat = model.predict(X_test_norm)
+print(y_hat.shape)
+print(y_test.shape)
+y_hat_mod = np.argmax (y_hat, axis = 1)
+y_test_mod=np.argmax(y_test, axis=1)
+print(y_hat_mod.flatten().shape)
+print(y_test_mod.flatten().shape)
+
+conf_mat = confusion_matrix(y_test_mod.flatten(), y_hat_mod.flatten())
+disp = ConfusionMatrixDisplay(conf_mat)
+disp.plot()
+plt.savefig('conf_mat.png')
+plt.close()
+
 
 # print model keys
+
 print(history.history.keys())
 # accuracy graph
 plt.plot(history.history['accuracy'])
@@ -180,9 +283,9 @@ plt.plot(history.history['accuracy'])
 plt.title('model accuracy')
 plt.ylabel('accuracy')
 plt.xlabel('epoch')
-plt.legend(['train', 'test'], loc='upper left')
-plt.show()
+plt.legend(['train', 'validation'], loc='upper left')
 plt.savefig('accuracy.png')
+plt.close()
 
 # loss graph
 plt.plot(history.history['loss'])
@@ -190,9 +293,11 @@ plt.plot(history.history['loss'])
 plt.title('model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')
-plt.legend(['train', 'test'], loc='upper left')
-plt.show()
+plt.legend(['train', 'validation'], loc='upper left')
 plt.savefig('loss.png')
+plt.close()
+
+
 
 # wildfire_da = wildfire_dataset.to_array()
 # print(wildfire_da.loc[:, :10])
