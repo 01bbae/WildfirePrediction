@@ -2,6 +2,7 @@ import math
 import tensorflow as tf
 import tensorflow.keras
 from tensorflow.keras import layers, models, losses, optimizers
+from tensorflow.keras.regularizers import l2
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -29,11 +30,11 @@ if x == "n":
     Xy_label.append(y_label)
 
     # take the first 5 time steps for all x and y to try creating a smaller dataset
-    start_timestep = 100
-    num_samples = 500
+    start_timestep = 90
+    num_samples = 20
     timesteps_per_sample = 1
-    width_limit = 200
-    height_limit = 200
+    width_limit = 100
+    height_limit = 100
     timestep_samples = num_samples*timesteps_per_sample
     train_size = 0.8
 
@@ -104,10 +105,11 @@ if x == "n":
     # print(nonfire_train)
     # print(nonfire_train.shape)
 
+
     if fire_train.shape[0] == 0:
         print("No wildfire data to use")
     else:
-        print("Fire Samples: ", fire_train.shape[0])
+        print("=======================Fire Samples===================: ", fire_train.shape[0])
         # throw error for not having fire datapoints to weight/multiply
 
     # doubling wildfire data
@@ -201,7 +203,6 @@ else:
     X_test_norm = np.load("X_test_norm.npy")
     y_train = np.load("y_train.npy")
     y_test = np.load("y_test.npy")
-
 print("X_train: ", X_train_norm.shape)
 print("X_test: ", X_test_norm.shape)
 print("y_train: ", y_train.shape)
@@ -235,10 +236,11 @@ if np.isnan(y_test).any():
 def build_ConvLSTM():
     convlstm = models.Sequential()
     convlstm.add(layers.Input(shape=X_train_norm.shape[-4:]))
-    convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
-    convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
-    convlstm.add(layers.BatchNormalization())
+    # convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    # convlstm.add(layers.BatchNormalization())
+    # convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    # convlstm.add(layers.BatchNormalization())
+    
     # convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     # convlstm.add(layers.BatchNormalization())
     convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(2,2), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
@@ -248,7 +250,7 @@ def build_ConvLSTM():
     convlstm.add(layers.Conv3D(filters=1, kernel_size=(3, 3, 3), padding="same", data_format="channels_last", activation="sigmoid"))
     # https://keras.io/api/layers/recurrent_layers/time_distributed/
     convlstm.compile(
-        loss=losses.binary_crossentropy, optimizer=optimizers.Adam(), metrics=[tf.keras.metrics.Accuracy()]
+        loss=losses.binary_crossentropy, optimizer=optimizers.Adam(), metrics=[tf.keras.metrics.BinaryAccuracy()]
     )
     return convlstm
 
@@ -256,8 +258,9 @@ model = build_ConvLSTM()
 print(model.summary())
 epochs = 10
 batch_size = 1
-history = model.fit(X_train_norm, y_train, epochs=epochs, verbose=True)
+history = model.fit(X_train_norm, y_train, epochs=epochs, validation_data=(X_test_norm, y_test),verbose=True)
 # validation_data=(X_test_norm,y_test)
+
 
 y_hat = model.predict(X_test_norm)
 print(y_hat.shape)
@@ -278,7 +281,7 @@ plt.close()
 
 print(history.history.keys())
 # accuracy graph
-plt.plot(history.history['accuracy'])
+plt.plot(history.history['binary_accuracy'])
 # plt.plot(history.history['val_accuracy'])
 plt.title('model accuracy')
 plt.ylabel('accuracy')
