@@ -23,7 +23,14 @@ if x == "n":
     feature_nums = len(feature_list)
 
     # maybe predict more than one thing later, but for not only try to predict burned areas
-    remove_label = ["burned_areas", "ignition_points", "number_of_fires", "POP_DENS_2009", "POP_DENS_2010", "POP_DENS_2011", "POP_DENS_2012", "POP_DENS_2013", "POP_DENS_2014", "POP_DENS_2015", "POP_DENS_2016", "POP_DENS_2017", "POP_DENS_2018", "POP_DENS_2019", "POP_DENS_2020", "POP_DENS_2021", "ROAD_DISTANCE"]
+    remove_label = ["burned_areas", "ignition_points", "number_of_fires", 
+                    "POP_DENS_2009", "POP_DENS_2010", "POP_DENS_2011", "POP_DENS_2012", 
+                    "POP_DENS_2013", "POP_DENS_2014", "POP_DENS_2015", "POP_DENS_2016", 
+                    "POP_DENS_2017", "POP_DENS_2018", "POP_DENS_2019", "POP_DENS_2020", 
+                    "POP_DENS_2021", "ROAD_DISTANCE", "avg_d2m", "avg_sp", "fapar", "max_sp",
+                    "max_rh", "max_sp", "max_t2m", "max_tp","max_u10", "max_v10", 
+                    "max_wind_u10", "max_wind_v10", "min_d2m", "min_rh", "min_sp", "min_t2m",
+                    "min_tp", "min_u10", "min_v10", ""]
     X_label = [label for label in feature_list if label not in remove_label]
     y_label = "burned_areas"
     Xy_label = X_label
@@ -45,14 +52,12 @@ if x == "n":
     # 4) Leave the test set as is (No need for class weighting because only used for testing)
 
     # partial dataset (limit x and y coords)
-    train_dataset = wildfire_dataset.isel(time=slice(start_timestep, start_timestep+timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
-    train_dataset = train_dataset[Xy_label]
-    test_dataset = wildfire_dataset.isel(time=slice(math.floor(timestep_samples*train_size),timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
-    test_dataset = test_dataset[Xy_label]
+    # train_dataset = wildfire_dataset.isel(time=slice(start_timestep, start_timestep+timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
+    # train_dataset = train_dataset[Xy_label]
 
     # full dataset
-    # train_dataset = wildfire_dataset.isel(time=slice(start_timestep, start_timestep+timestep_samples))
-    # train_dataset = train_dataset[Xy_label]
+    train_dataset = wildfire_dataset.isel(time=slice(start_timestep, start_timestep+timestep_samples))
+    train_dataset = train_dataset[Xy_label]
 
 
     # axis_2_size is the timesteps for the dataset
@@ -128,12 +133,12 @@ if x == "n":
     actual_test_size = math.floor(actual_train_size*(1-train_size)//train_size)
 
     # full test set
-    # test_dataset = wildfire_dataset.isel(time=slice(start_timestep+timestep_samples, start_timestep+timestep_samples+actual_test_size))
-    # test_dataset = test_dataset[Xy_label]
+    test_dataset = wildfire_dataset.isel(time=slice(start_timestep+timestep_samples, start_timestep+timestep_samples+actual_test_size))
+    test_dataset = test_dataset[Xy_label]
 
     # partial test set
-    test_dataset = wildfire_dataset.isel(time=slice(start_timestep+timestep_samples, start_timestep+timestep_samples+actual_test_size), x=slice(None, width_limit), y=slice(None,height_limit))
-    test_dataset = test_dataset[Xy_label]
+    # test_dataset = wildfire_dataset.isel(time=slice(start_timestep+timestep_samples, start_timestep+timestep_samples+actual_test_size), x=slice(None, width_limit), y=slice(None,height_limit))
+    # test_dataset = test_dataset[Xy_label]
 
     test_np = dataset_to_np(test_dataset, actual_test_size)
 
@@ -185,6 +190,10 @@ if x == "n":
             # X_train[:,:,:,:,i] = X_train_transformed
             # X_test[:,:,:,:,i] = X_test_transformed
         return X_train_norm, X_test_norm
+    # X_train = np.reshape(X_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, X_train.shape[1], X_train.shape[2], X_train.shape[3]))
+    # X_test = np.reshape(X_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, X_test.shape[1], X_test.shape[2], X_test.shape[3]))
+    # y_train = np.reshape(y_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, y_train.shape[1], y_train.shape[2]))
+    # y_test = np.reshape(y_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, y_test.shape[1], y_test.shape[2]))
     X_train = np.reshape(X_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, X_train.shape[1], X_train.shape[2], X_train.shape[3]))
     X_test = np.reshape(X_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, X_test.shape[1], X_test.shape[2], X_test.shape[3]))
     y_train = np.reshape(y_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, y_train.shape[1], y_train.shape[2]))
@@ -233,9 +242,6 @@ if np.isnan(y_test).any():
 # # print(f"Displaying frames for example {data_choice}.")
 # plt.show()
 
-def build_ConvLSTM():
-    convlstm = models.Sequential()
-    convlstm.add(layers.Input(shape=X_train_norm.shape[-4:]))
     # convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     # convlstm.add(layers.BatchNormalization())
     # convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
@@ -243,12 +249,17 @@ def build_ConvLSTM():
     
     # convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     # convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(2,2), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
-    convlstm.add(layers.BatchNormalization())
-    convlstm.add(layers.ConvLSTM2D(filters=16, kernel_size=(1,1), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
-    # convlstm.add(layers.TimeDistributed(layers.Conv2D(filters=1, kernel_size=(3, 3), padding="same")))
-    convlstm.add(layers.Conv3D(filters=1, kernel_size=(3, 3, 3), padding="same", data_format="channels_last", activation="sigmoid"))
     # https://keras.io/api/layers/recurrent_layers/time_distributed/
+
+
+def build_ConvLSTM():
+    convlstm = models.Sequential()
+    convlstm.add(layers.Input(shape=X_train_norm.shape[-4:]))
+    convlstm.add(layers.ConvLSTM2D(filters=16, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    convlstm.add(layers.BatchNormalization())
+    convlstm.add(layers.ConvLSTM2D(filters=8, kernel_size=(2,2), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    convlstm.add(layers.BatchNormalization())
+    convlstm.add(layers.Conv3D(filters=1, kernel_size=(2, 2, 2), padding="same", data_format="channels_last", activation="sigmoid"))
     convlstm.compile(
         loss=losses.binary_crossentropy, optimizer=optimizers.Adam(), metrics=[tf.keras.metrics.BinaryAccuracy()]
     )
@@ -256,24 +267,41 @@ def build_ConvLSTM():
 
 model = build_ConvLSTM()
 print(model.summary())
-epochs = 10
+epochs = 50
 batch_size = 1
-history = model.fit(X_train_norm, y_train, epochs=epochs, validation_data=(X_test_norm, y_test),verbose=True)
+history = model.fit(X_train_norm, y_train, validation_data=(X_test_norm,y_test), epochs=epochs, verbose=True)
 # validation_data=(X_test_norm,y_test)
 
+# Evaluation Metrics
+
+threshold = 0.5
+
+y_hat = model.predict(X_train_norm)
+print(y_hat.shape)
+print(y_train.shape)
+y_hat_mod = np.where(y_hat > threshold, 1,0)
+print(y_hat_mod.flatten().shape)
+print(y_train.flatten().shape)
+
+conf_mat = confusion_matrix(y_train.flatten(), y_hat_mod.flatten())
+disp = ConfusionMatrixDisplay(conf_mat)
+disp.plot()
+plt.title('training confusion matrix')
+plt.savefig('conf_mat_train.png')
+plt.close()
 
 y_hat = model.predict(X_test_norm)
 print(y_hat.shape)
 print(y_test.shape)
-y_hat_mod = np.argmax (y_hat, axis = 1)
-y_test_mod=np.argmax(y_test, axis=1)
+y_hat_mod = np.where(y_hat > threshold, 1,0)
 print(y_hat_mod.flatten().shape)
-print(y_test_mod.flatten().shape)
+print(y_test.flatten().shape)
 
-conf_mat = confusion_matrix(y_test_mod.flatten(), y_hat_mod.flatten())
+conf_mat = confusion_matrix(y_test.flatten(), y_hat_mod.flatten())
 disp = ConfusionMatrixDisplay(conf_mat)
 disp.plot()
-plt.savefig('conf_mat.png')
+plt.title('testing confusion matrix')
+plt.savefig('conf_mat_test.png')
 plt.close()
 
 
@@ -282,7 +310,7 @@ plt.close()
 print(history.history.keys())
 # accuracy graph
 plt.plot(history.history['binary_accuracy'])
-# plt.plot(history.history['val_accuracy'])
+plt.plot(history.history['val_binary_accuracy'])
 plt.title('model accuracy')
 plt.ylabel('accuracy')
 plt.xlabel('epoch')
@@ -292,7 +320,7 @@ plt.close()
 
 # loss graph
 plt.plot(history.history['loss'])
-# plt.plot(history.history['val_loss'])
+plt.plot(history.history['val_loss'])
 plt.title('model loss')
 plt.ylabel('loss')
 plt.xlabel('epoch')
