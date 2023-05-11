@@ -3,6 +3,7 @@ import tensorflow as tf
 import tensorflow.keras
 from tensorflow.keras import layers, models, losses, optimizers
 from tensorflow.keras.regularizers import l2
+from generator import WildfireSequence
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import warnings
 print(tf.config.list_physical_devices('GPU'))
+
 
 print("If its the first time running this script, select n for the following question")
 x=input("Use Loaded Dataset? [Y]/n: ")
@@ -30,20 +32,21 @@ if x == "n":
                     "POP_DENS_2021", "ROAD_DISTANCE", "avg_d2m", "avg_sp", "fapar", "max_sp",
                     "max_rh", "max_sp", "max_t2m", "max_tp","max_u10", "max_v10", 
                     "max_wind_u10", "max_wind_v10", "min_d2m", "min_rh", "min_sp", "min_t2m",
-                    "min_tp", "min_u10", "min_v10", ""]
+                    "min_tp", "min_u10", "min_v10"]
     X_label = [label for label in feature_list if label not in remove_label]
     y_label = "burned_areas"
     Xy_label = X_label
     Xy_label.append(y_label)
 
-    # take the first 5 time steps for all x and y to try creating a smaller dataset
-    start_timestep = 90
-    num_samples = 20
+    # Initialize paramters
+    start_timestep = 0
+    num_samples = 500
     timesteps_per_sample = 1
     width_limit = 100
     height_limit = 100
     timestep_samples = num_samples*timesteps_per_sample
     train_size = 0.8
+    oversampling_factor = 5
 
     # DATA PROCESSING
     # 1) Train Test Split
@@ -51,11 +54,11 @@ if x == "n":
     # 3) For the train set, weight/multiply the fire dataset and combine it with the non fire dataset (Class weighting)
     # 4) Leave the test set as is (No need for class weighting because only used for testing)
 
-    # partial dataset (limit x and y coords)
+    # partial width/height dataset (limit x and y coords)
     # train_dataset = wildfire_dataset.isel(time=slice(start_timestep, start_timestep+timestep_samples), x=slice(None,width_limit), y=slice(None,height_limit))
     # train_dataset = train_dataset[Xy_label]
 
-    # full dataset
+    # full width/height dataset
     train_dataset = wildfire_dataset.isel(time=slice(start_timestep, start_timestep+timestep_samples))
     train_dataset = train_dataset[Xy_label]
 
@@ -110,33 +113,40 @@ if x == "n":
     # print(nonfire_train)
     # print(nonfire_train.shape)
 
-
-    if fire_train.shape[0] == 0:
+    num_wildfire_samples = fire_train.shape[0]
+    num_non_wildfire_samples = nonfire_train.shape[0]
+    if num_wildfire_samples == 0:
+            # throw error for not having fire datapoints to weight/multiply
         print("No wildfire data to use")
     else:
-        print("=======================Fire Samples===================: ", fire_train.shape[0])
-        # throw error for not having fire datapoints to weight/multiply
+        print("=======================Fire Samples===================: ", num_wildfire_samples)
 
-    # doubling wildfire data
-    ext_fire_train = np.repeat(fire_train, 2, axis=0)
+    print("=======================Non Fire Samples===================: ", num_non_wildfire_samples)
+
+    # oversampling wildfire data
+    ext_fire_train = np.repeat(fire_train, oversampling_factor, axis=0)
 
 
     # combine both wildfire and non wildfire train datasets
     train_dataset = np.concatenate((nonfire_train, ext_fire_train))
 
-    actual_train_size = train_dataset.shape[0]
     X_train = train_dataset[:,:,:,:-1]
     y_train = train_dataset[:,:,:,-1]
 
 
     # Handle Test
-    actual_test_size = math.floor(actual_train_size*(1-train_size)//train_size)
+    actual_train_size = train_dataset.shape[0]
+    total_train_test_size = int(actual_train_size/train_size)
+    actual_test_size = total_train_test_size-actual_train_size
+    print("actual_train_size: ", actual_train_size)
+    print("total_train_test_size: ", total_train_test_size)
+    print("actual_test_size: ", actual_test_size)
 
-    # full test set
+    # full width/height test dataset
     test_dataset = wildfire_dataset.isel(time=slice(start_timestep+timestep_samples, start_timestep+timestep_samples+actual_test_size))
     test_dataset = test_dataset[Xy_label]
 
-    # partial test set
+    # partial width/height test dataset
     # test_dataset = wildfire_dataset.isel(time=slice(start_timestep+timestep_samples, start_timestep+timestep_samples+actual_test_size), x=slice(None, width_limit), y=slice(None,height_limit))
     # test_dataset = test_dataset[Xy_label]
 
@@ -180,38 +190,26 @@ if x == "n":
             print("mean: ", X_train[:,:,:,:,i].mean())
             print("std: ", X_train[:,:,:,:,i].std())
 
-
-            # X_train_transformed = sc.fit_transform(X_train_2d)
-            # X_test_transformed = sc.transform(X_test_2d)
-            # Reshape to 4d (samples, time, x, y)
-            # X_train_transformed = X_train_transformed.reshape(X_train.shape[0], X_train.shape[1], X_train.shape[2], X_train.shape[3])
-            # X_test_transformed = X_test_transformed.reshape(X_test.shape[0], X_test.shape[1], X_test.shape[2], X_test.shape[3])
-            # Store normalized feature in X_train
-            # X_train[:,:,:,:,i] = X_train_transformed
-            # X_test[:,:,:,:,i] = X_test_transformed
         return X_train_norm, X_test_norm
-    # X_train = np.reshape(X_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, X_train.shape[1], X_train.shape[2], X_train.shape[3]))
-    # X_test = np.reshape(X_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, X_test.shape[1], X_test.shape[2], X_test.shape[3]))
-    # y_train = np.reshape(y_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, y_train.shape[1], y_train.shape[2]))
-    # y_test = np.reshape(y_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, y_test.shape[1], y_test.shape[2]))
-    X_train = np.reshape(X_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, X_train.shape[1], X_train.shape[2], X_train.shape[3]))
-    X_test = np.reshape(X_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, X_test.shape[1], X_test.shape[2], X_test.shape[3]))
-    y_train = np.reshape(y_train, (actual_train_size//timesteps_per_sample, timesteps_per_sample, y_train.shape[1], y_train.shape[2]))
-    y_test = np.reshape(y_test, (actual_test_size//timesteps_per_sample, timesteps_per_sample, y_test.shape[1], y_test.shape[2]))
+    
+    X_train = np.reshape(X_train, (actual_train_size, timesteps_per_sample, X_train.shape[1], X_train.shape[2], X_train.shape[3]))
+    X_test = np.reshape(X_test, (actual_test_size, timesteps_per_sample, X_test.shape[1], X_test.shape[2], X_test.shape[3]))
+    y_train = np.reshape(y_train, (actual_train_size, timesteps_per_sample, y_train.shape[1], y_train.shape[2]))
+    y_test = np.reshape(y_test, (actual_test_size, timesteps_per_sample, y_test.shape[1], y_test.shape[2]))
 
     X_train_norm, X_test_norm = normalize(X_train, X_test)
     
 
     # save numpy array in file
-    np.save("X_train_norm", X_train_norm)
-    np.save("X_test_norm", X_test_norm)
-    np.save("y_train", y_train)
-    np.save("y_test", y_test)
+    np.save("X_train_norm_500", X_train_norm)
+    np.save("X_test_norm_500", X_test_norm)
+    np.save("y_train_500", y_train)
+    np.save("y_test_500", y_test)
 else:
-    X_train_norm = np.load("X_train_norm.npy")
-    X_test_norm = np.load("X_test_norm.npy")
-    y_train = np.load("y_train.npy")
-    y_test = np.load("y_test.npy")
+    X_train_norm = np.load("X_train_norm_500.npy")
+    X_test_norm = np.load("X_test_norm_500.npy")
+    y_train = np.load("y_train_500.npy")
+    y_test = np.load("y_test_500.npy")
 print("X_train: ", X_train_norm.shape)
 print("X_test: ", X_test_norm.shape)
 print("y_train: ", y_train.shape)
@@ -228,20 +226,6 @@ if np.isnan(y_train).any():
 if np.isnan(y_test).any():
     print("y_test has nans")
 
-# # Construct a figure on which we will visualize the images.
-# fig, axes = plt.subplots(3,4, figsize=(10, 8))
-
-# # Plot each of the sequential images for one random data example.
-# for idx, ax in enumerate(axes.flat):
-#     ax.imshow(np.squeeze(y_train[idx][0]))
-#     ax.imshow(np.squeeze(y_train[idx][1]))
-#     ax.set_title(f"Frame {idx + 1}")
-#     ax.axis("off")
-
-# # Print information and display the figure.
-# # print(f"Displaying frames for example {data_choice}.")
-# plt.show()
-
     # convlstm.add(layers.ConvLSTM2D(filters=128, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     # convlstm.add(layers.BatchNormalization())
     # convlstm.add(layers.ConvLSTM2D(filters=64, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
@@ -255,6 +239,8 @@ if np.isnan(y_test).any():
 def build_ConvLSTM():
     convlstm = models.Sequential()
     convlstm.add(layers.Input(shape=X_train_norm.shape[-4:]))
+    # convlstm.add(layers.ConvLSTM2D(filters=32, kernel_size=(5,5), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
+    # convlstm.add(layers.BatchNormalization())
     convlstm.add(layers.ConvLSTM2D(filters=16, kernel_size=(3,3), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
     convlstm.add(layers.BatchNormalization())
     convlstm.add(layers.ConvLSTM2D(filters=8, kernel_size=(2,2), padding="same", data_format="channels_last", activation="relu", return_sequences=True))
@@ -267,10 +253,10 @@ def build_ConvLSTM():
 
 model = build_ConvLSTM()
 print(model.summary())
-epochs = 50
+epochs = 25
 batch_size = 1
-history = model.fit(X_train_norm, y_train, validation_data=(X_test_norm,y_test), epochs=epochs, verbose=True)
-# validation_data=(X_test_norm,y_test)
+# history = model.fit(X_train_norm, y_train, validation_data=(X_test_norm,y_test), epochs=epochs, batch_size=batch_size, verbose=True)
+history = model.fit(WildfireSequence(X_train_norm, y_train, 1), validation_data=(X_test_norm,y_test), epochs=epochs, batch_size=batch_size, verbose=True)
 
 # Evaluation Metrics
 
