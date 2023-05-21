@@ -1,7 +1,15 @@
 # WildfirePrediction
 
 
-Collaborators:
+Collaborators: BJ Bae, Jared Amaral
+
+How to run:
+
+1. Download the dataset from here: https://zenodo.org/record/6475592
+2. Run ```dataproc.py``` first for data processing and dowloading into np arrays
+3. Run ```wildfire.py``` for model training
+
+
 
 References:
 

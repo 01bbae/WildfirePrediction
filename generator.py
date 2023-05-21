@@ -1,25 +1,38 @@
 import numpy as np
 import tensorflow as tf
 import math
+from pathlib import Path
+import os
 
 class WildfireSequence(tf.keras.utils.Sequence):
 
-    def __init__(self, x_set, y_set, batch_size):
-        self.x, self.y = x_set, y_set
-        self.batch_size = batch_size
+    def __init__(self, data_path, train=True):
+        self.data_path = data_path
+        self.train = train
 
     def __len__(self):
-        return math.ceil(len(self.x) / self.batch_size)
+        # number of batches is half the number of files in the train or test directory
+        if self.train: # remove 2 for train directory because we dont want to count mean and std files
+            return int((len((os.listdir(self.data_path)))-2)/2)
+        else:
+            return int(len(os.listdir(self.data_path))/2)
 
     def __getitem__(self, idx):
-        # low = idx * self.batch_size
-        # # Cap upper bound at array length; the last batch may be smaller
-        # # if the total number of items is not a multiple of batch size.
-        # high = min(low + self.batch_size, len(self.x))
-        batch_x = self.x[idx,:,:,:,:]
-        batch_y = self.y[idx,:,:,:]
-        # print(batch_x.shape)
-        # print(batch_y.shape)
+        if self.train:
+            X_train_norm_sample = np.load(os.path.join(self.data_path, "X_train_norm_sample_" + str(idx) + ".npy"))
+            y_train_sample = np.load(os.path.join(self.data_path, "y_train_sample_" + str(idx) + ".npy"))
+            # print("in generator X_train_norm_sample: ", X_train_norm_sample.shape)
+            # print("in generator y_train_sample: ",y_train_sample.shape)
 
-        return np.reshape(batch_x, (self.batch_size, batch_x.shape[0], batch_x.shape[1], batch_x.shape[2], batch_x.shape[3])), np.reshape(batch_y, (self.batch_size, batch_y.shape[0], batch_y.shape[1], batch_y.shape[2]))
-        # np.reshape(batch_y, (batch_size, batch_y.shape[0], batch_y.shape[1], batch_y.shape[2], batch_y.shape[3]))
+            X_train_norm_sample = np.expand_dims(X_train_norm_sample, axis=0)
+            y_train_sample = np.expand_dims(y_train_sample, axis=0)
+
+            return X_train_norm_sample, y_train_sample
+        else:
+            X_test_norm_sample = np.load(os.path.join(self.data_path, "X_test_norm_sample_" + str(idx) + ".npy"))
+            y_test_sample = np.load(os.path.join(self.data_path, "y_test_sample_" + str(idx) + ".npy"))
+            X_test_norm_sample = np.expand_dims(X_test_norm_sample, axis=0)
+            y_test_sample = np.expand_dims(y_test_sample, axis=0)
+            # print("in generator X_test_norm_sample: ", X_test_norm_sample.shape)
+            # print("in generator y_test_sample: ",y_test_sample.shape)
+            return X_test_norm_sample, y_test_sample
